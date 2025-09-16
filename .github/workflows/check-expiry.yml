@@ -1,0 +1,27 @@
+name: Expiry Date Checker
+
+on:
+  schedule:
+    - cron: "0 14 * * *" # runs daily at 14:00 UTC
+  workflow_dispatch:
+
+jobs:
+  check-expiry:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: pip install pyyaml requests
+
+      - name: Run expiry check
+        run: python scripts/check_expiry.py
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

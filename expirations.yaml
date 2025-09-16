@@ -1,0 +1,8 @@
+# expirations.yaml
+items:
+  - name: API Token
+    expiry: 2025-10-10
+    repo: https://github.com/org/repo1
+  - name: SSL Certificate
+    expiry: 2025-09-30
+    repo: https://github.com/org/repo2
