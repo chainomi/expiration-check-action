@@ -87,6 +87,92 @@
 #     message = build_message(items)
 #     send_to_slack(message)
 
+# import yaml
+# import os
+# from datetime import datetime, date
+# import requests
+
+# FILE_PATH = "expirations.yaml"
+# SLACK_WEBHOOK_URL = os.environ.get("SLACK_WEBHOOK_URL")
+
+# def load_expirations(file_path):
+#     with open(file_path, "r") as f:
+#         data = yaml.safe_load(f)
+#     return data["items"]
+
+# def calculate_days_left(expiry_date):
+#     if isinstance(expiry_date, date):  # already a date
+#         expiry = expiry_date
+#     else:  # parse string
+#         expiry = datetime.strptime(expiry_date, "%Y-%m-%d").date()
+#     today = datetime.today().date()
+#     return (expiry - today).days
+
+# def categorize_items(items):
+#     expired, soon, healthy = [], [], []
+#     for item in items:
+#         days_left = calculate_days_left(item["expiry"])
+#         repo = item.get("repo", "N/A")
+#         entry = {
+#             "name": item["name"],
+#             "expiry": item["expiry"],
+#             "days_left": days_left,
+#             "repo": repo
+#         }
+#         if days_left <= 0:
+#             expired.append(entry)
+#         elif days_left <= 30:
+#             soon.append(entry)
+#         else:
+#             healthy.append(entry)
+#     return expired, soon, healthy
+
+# def build_blocks(expired, soon, healthy):
+#     blocks = [
+#         {
+#             "type": "header",
+#             "text": {"type": "plain_text", "text": "⏳ Token Expiry Check Report"}
+#         },
+#         {"type": "divider"}
+#     ]
+
+#     def section(title, emoji, entries):
+#         if not entries:
+#             return
+#         blocks.append({
+#             "type": "section",
+#             "text": {"type": "mrkdwn", "text": f"*{emoji} {title}*"}
+#         })
+#         for e in entries:
+#             if e["days_left"] <= 0:
+#                 text = f":warning: *{e['name']}* expired on *{e['expiry']}*\nRepo: <{e['repo']}|link>"
+#             else:
+#                 text = f"*{e['name']}* → {e['days_left']} days left (expires {e['expiry']})\nRepo: <{e['repo']}|link>"
+#             blocks.append({
+#                 "type": "section",
+#                 "text": {"type": "mrkdwn", "text": text}
+#             })
+#         blocks.append({"type": "divider"})
+
+#     section("Expired", "🔴", expired)
+#     section("Expiring Soon (≤30 days)", "🟡", soon)
+#     section("Healthy (>30 days)", "🟢", healthy)
+
+#     return blocks
+
+# def send_to_slack(blocks):
+#     if not SLACK_WEBHOOK_URL:
+#         raise Exception("SLACK_WEBHOOK_URL not set")
+#     payload = {"blocks": blocks}
+#     response = requests.post(SLACK_WEBHOOK_URL, json=payload)
+#     response.raise_for_status()
+
+# if __name__ == "__main__":
+#     items = load_expirations(FILE_PATH)
+#     expired, soon, healthy = categorize_items(items)
+#     blocks = build_blocks(expired, soon, healthy)
+#     send_to_slack(blocks)
+
 import yaml
 import os
 from datetime import datetime, date
@@ -112,7 +198,7 @@ def categorize_items(items):
     expired, soon, healthy = [], [], []
     for item in items:
         days_left = calculate_days_left(item["expiry"])
-        repo = item.get("repo", "N/A")
+        repo = item.get("repo", None)
         entry = {
             "name": item["name"],
             "expiry": item["expiry"],
@@ -125,13 +211,18 @@ def categorize_items(items):
             soon.append(entry)
         else:
             healthy.append(entry)
+
+    # Sort each group by days_left (ascending)
+    expired.sort(key=lambda x: x["days_left"])
+    soon.sort(key=lambda x: x["days_left"])
+    healthy.sort(key=lambda x: x["days_left"])
     return expired, soon, healthy
 
 def build_blocks(expired, soon, healthy):
     blocks = [
         {
             "type": "header",
-            "text": {"type": "plain_text", "text": "⏳ Token Expiry Check Report"}
+            "text": {"type": "plain_text", "text": "⏳ Expiry Check Report"}
         },
         {"type": "divider"}
     ]
@@ -144,10 +235,17 @@ def build_blocks(expired, soon, healthy):
             "text": {"type": "mrkdwn", "text": f"*{emoji} {title}*"}
         })
         for e in entries:
-            if e["days_left"] <= 0:
-                text = f":warning: *{e['name']}* expired on *{e['expiry']}*\nRepo: <{e['repo']}|link>"
+            # Properly hyperlink repo with the name
+            if e["repo"]:
+                name_with_link = f"<{e['repo']}|{e['name']}>"
             else:
-                text = f"*{e['name']}* → {e['days_left']} days left (expires {e['expiry']})\nRepo: <{e['repo']}|link>"
+                name_with_link = e["name"]
+
+            if e["days_left"] <= 0:
+                text = f":warning: *{name_with_link}* expired on *{e['expiry']}*"
+            else:
+                text = f"*{name_with_link}* → {e['days_left']} days left (expires {e['expiry']})"
+
             blocks.append({
                 "type": "section",
                 "text": {"type": "mrkdwn", "text": text}
